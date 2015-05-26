@@ -16,7 +16,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.zip.GZIPInputStream;
@@ -33,16 +32,21 @@ final class TextImporter2 {
 
   public static void main(String[] args) throws Exception {
 
+    if (args.length == 0) {
+      System.err.println("usage: path [buffer_size]");
+      System.exit(-1);
+    }
 
-    LOG.info("paths: {}", Arrays.toString(args));
+    final String path = args[0];
+    final int bufferSize = args.length > 1 ? Integer.parseInt(args[1]) : 8192;
+
+    LOG.info("path: {}", path);
+    LOG.info("buffer size: {}", bufferSize);
 
     final long start_time = System.nanoTime();
     int points = 0;
 
-    for (final String path : args) {
-      LOG.info("Importing file {}", path);
-      points += importFile(path);
-    }
+    points += importFile(path, bufferSize);
 
     displayAvgSpeed(start_time, points);
   }
@@ -58,9 +62,9 @@ final class TextImporter2 {
    * @return number of points imported from file
    * @throws IOException
    */
-  private static int importFile(final String path) throws IOException {
+  private static int importFile(final String path, final int bufferSize) throws IOException {
 
-    final BufferedReader in = open(path);
+    final BufferedReader in = open(path, bufferSize);
     String line = null;
 
     int points = 0;
@@ -116,13 +120,13 @@ final class TextImporter2 {
    * @return A buffered reader to read the file, decompressing it if needed.
    * @throws IOException when shit happens.
    */
-  private static BufferedReader open(final String path) throws IOException {
+  private static BufferedReader open(final String path, final int bufferSize) throws IOException {
     InputStream is = new FileInputStream(path);
     if (path.endsWith(".gz")) {
       is = new GZIPInputStream(is);
     }
     // I <3 Java's IO library.
-    return new BufferedReader(new InputStreamReader(is));
+    return new BufferedReader(new InputStreamReader(is), bufferSize);
   }
 
 }
