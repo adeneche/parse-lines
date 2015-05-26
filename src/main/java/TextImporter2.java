@@ -11,16 +11,13 @@
 // of the GNU Lesser General Public License along with this program. If not,
 // see <http://www.gnu.org/licenses/>.
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.zip.GZIPInputStream;
 
 import com.google.common.base.Splitter;
+import freader.BufferedFileReader;
+import freader.FileReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,8 +61,8 @@ final class TextImporter2 {
    */
   private static int importFile(final String path, final int bufferSize) throws IOException {
 
-//    final BufferedReader in = open(path, bufferSize);
-    final FileReader reader = new FileReader();
+//    final FileReader reader = new CharBufferFileReader();
+    final FileReader reader = new BufferedFileReader(bufferSize);
     String line = null;
 
     int points = 0;
@@ -110,25 +107,10 @@ final class TextImporter2 {
       throw new RuntimeException("invalid value: " + value);
     }
 
-    final HashMap<String, String> tags = new HashMap<String, String>();
+    final HashMap<String, String> tags = new HashMap<>();
     while (iterator.hasNext()) {
       Tags.parse(tags, iterator.next());
     }
   }
-
-  /**
-   * Opens a file for reading, handling gzipped files.
-   * @param path The file to open.
-   * @return A buffered reader to read the file, decompressing it if needed.
-   * @throws IOException when shit happens.
-   */
-//  private static BufferedReader open(final String path, final int bufferSize) throws IOException {
-//    InputStream is = new FileInputStream(path);
-//    if (path.endsWith(".gz")) {
-//      is = new GZIPInputStream(is);
-//    }
-//    // I <3 Java's IO library.
-//    return new BufferedReader(new InputStreamReader(is), bufferSize);
-//  }
 
 }
