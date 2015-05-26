@@ -64,7 +64,8 @@ final class TextImporter2 {
    */
   private static int importFile(final String path, final int bufferSize) throws IOException {
 
-    final BufferedReader in = open(path, bufferSize);
+//    final BufferedReader in = open(path, bufferSize);
+    final FileReader reader = new FileReader();
     String line = null;
 
     int points = 0;
@@ -72,7 +73,8 @@ final class TextImporter2 {
     final long start_time = System.nanoTime();
 
     try {
-      while ((line = in.readLine()) != null) {
+      reader.readFile(path);
+      while ((line = reader.readln()) != null) {
         processAndImportLine(splitter.split(line));
 
         points++;
@@ -85,7 +87,7 @@ final class TextImporter2 {
       LOG.error("Exception caught while processing file " + path + " line=" + line);
       throw e;
     } finally {
-      in.close();
+//      in.close();
     }
 
     return points;
@@ -120,13 +122,13 @@ final class TextImporter2 {
    * @return A buffered reader to read the file, decompressing it if needed.
    * @throws IOException when shit happens.
    */
-  private static BufferedReader open(final String path, final int bufferSize) throws IOException {
-    InputStream is = new FileInputStream(path);
-    if (path.endsWith(".gz")) {
-      is = new GZIPInputStream(is);
-    }
-    // I <3 Java's IO library.
-    return new BufferedReader(new InputStreamReader(is), bufferSize);
-  }
+//  private static BufferedReader open(final String path, final int bufferSize) throws IOException {
+//    InputStream is = new FileInputStream(path);
+//    if (path.endsWith(".gz")) {
+//      is = new GZIPInputStream(is);
+//    }
+//    // I <3 Java's IO library.
+//    return new BufferedReader(new InputStreamReader(is), bufferSize);
+//  }
 
 }
