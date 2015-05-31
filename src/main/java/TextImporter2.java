@@ -13,19 +13,18 @@
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 
-import com.google.common.base.Splitter;
 import freader.BufferedFileReader;
+import freader.CharBufferFileReader;
+import freader.FastLineReader;
 import freader.FileReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import utils.Tags;
 
 final class TextImporter2 {
 
   private static final Logger LOG = LoggerFactory.getLogger(TextImporter2.class);
-
-  private static final Splitter splitter = Splitter.on(" ").trimResults();
 
   public static void main(String[] args) throws Exception {
 
@@ -61,8 +60,9 @@ final class TextImporter2 {
    */
   private static int importFile(final String path, final int bufferSize) throws IOException {
 
+    final FileReader reader = new FastLineReader();
 //    final FileReader reader = new CharBufferFileReader();
-    final FileReader reader = new BufferedFileReader(bufferSize);
+//    final FileReader reader = new BufferedFileReader(bufferSize);
     String line = null;
 
     int points = 0;
@@ -71,8 +71,8 @@ final class TextImporter2 {
 
     try {
       reader.readFile(path);
-      while ((line = reader.readln()) != null) {
-        processAndImportLine(splitter.split(line));
+      while (reader.readln()) {
+        processAndImportLine(reader);
 
         points++;
 
@@ -83,33 +83,30 @@ final class TextImporter2 {
     } catch (RuntimeException e) {
       LOG.error("Exception caught while processing file " + path + " line=" + line);
       throw e;
-    } finally {
-//      in.close();
     }
 
     return points;
   }
 
-  private static void processAndImportLine(final Iterable<String> words) {
-    Iterator<String> iterator = words.iterator();
-    final String metric = iterator.next();
+  private static void processAndImportLine(final FileReader reader) {
+    final String metric = reader.next();
     if (metric.length() <= 0) {
       throw new RuntimeException("invalid metric: " + metric);
     }
 
-    long timestamp = Tags.parseLong(iterator.next());
+    long timestamp = reader.nextLong();
     if (timestamp <= 0) {
       throw new RuntimeException("invalid timestamp: " + timestamp);
     }
 
-    final String value = iterator.next();
+    final String value = reader.next();
     if (value.length() <= 0) {
       throw new RuntimeException("invalid value: " + value);
     }
 
     final HashMap<String, String> tags = new HashMap<>();
-    while (iterator.hasNext()) {
-      Tags.parse(tags, iterator.next());
+    while (reader.hasNext()) {
+      Tags.parse(tags, reader.next());
     }
   }
 

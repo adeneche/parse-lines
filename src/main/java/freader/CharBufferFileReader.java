@@ -1,7 +1,9 @@
 package freader;
 
+import com.google.common.base.Splitter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import utils.Tags;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -11,14 +13,19 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Iterator;
 
-public class CharBufferFileReader implements FileReader {
+public class CharBufferFileReader extends FileReader {
 
   private static final Logger LOG = LoggerFactory.getLogger(CharBufferFileReader.class);
 
   private char[] chars;
   private int offset = 0;
   private int index = 0;
+
+
+  private Iterator<String> words;
+  private final Splitter splitter = Splitter.on(" ").trimResults();
 
   @Override
   public void readFile(String fileName) {
@@ -37,11 +44,33 @@ public class CharBufferFileReader implements FileReader {
   }
 
   @Override
-  public String readln() {
+  public boolean readln() {
     while (index < chars.length && chars[index] != '\n') index++;
-    String str = index < chars.length ? new String(chars, offset, chars[index] == '\r' ? index - offset : index - offset + 1) : null;
+    if (index >= chars.length) {
+      return false;
+    }
+    String line = new String(chars, offset, chars[index] == '\r' ? index - offset : index - offset + 1);
+    words = splitter.split(line).iterator();
+
     offset = index + 2;
     index = offset;
-    return str;
+    return true;
+  }
+
+  @Override
+  public boolean hasNext() {
+    return words.hasNext();
+  }
+
+  @Override
+  public String next() {
+    assert words.hasNext();
+    return words.next();
+  }
+
+  @Override
+  public long nextLong() {
+    assert words.hasNext();
+    return Tags.parseLong(words.next());
   }
 }
