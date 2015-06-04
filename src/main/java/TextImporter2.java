@@ -12,12 +12,18 @@
 // see <http://www.gnu.org/licenses/>.
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.HashMap;
 
-import freader.BufferedFileReader;
-import freader.CharBufferFileReader;
-import freader.FastLineReader;
-import freader.FileReader;
+import readers.BufferedFileReader;
+import readers.BufferedOldReader;
+import readers.CharBufferFileReader;
+import readers.FastBufferedReader;
+import readers.FastLineReader;
+import readers.FileReader;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import utils.Tags;
@@ -26,80 +32,128 @@ final class TextImporter2 {
 
   private static final Logger LOG = LoggerFactory.getLogger(TextImporter2.class);
 
-  public static void main(String[] args) throws Exception {
+  private static final Runtime runtime = Runtime.getRuntime();
+  private static final DecimalFormat sizeFormatter = new DecimalFormat("#,##0.#");
 
-    if (args.length == 0) {
-      System.err.println("usage: path [buffer_size]");
+  public static void main(String[] args) throws Exception {
+    Options myOptions = new Options();
+    CmdLineParser parser = new CmdLineParser(myOptions);
+
+    try {
+      parser.parseArgument(args);
+    } catch (CmdLineException e) {
+      System.err.println(e.getMessage());
+      parser.printUsage(System.err);
       System.exit(-1);
     }
 
-    final String path = args[0];
-    final int bufferSize = args.length > 1 ? Integer.parseInt(args[1]) : 8192;
+    LOG.info("path: {}", myOptions.input);
+    LOG.info("buffer size: {}", myOptions.bufferSize);
+    LOG.info("reader: {}", myOptions.reader);
 
-    LOG.info("path: {}", path);
-    LOG.info("buffer size: {}", bufferSize);
+    if (myOptions.showMem) {
+      runtime.gc();
+    }
 
     final long start_time = System.nanoTime();
-    int points = 0;
+    long points = 0;
 
-    points += importFile(path, bufferSize);
+    for (int i = 0; i < myOptions.repetitions; i++) {
+      points += importFile(myOptions);
+    }
 
-    displayAvgSpeed(start_time, points);
+    displayAvgSpeedAndMemory(start_time, points, false);
   }
 
-  private static void displayAvgSpeed(final long start_time, final int points) {
+  private static String formatSize(long size) {
+    if(size <= 0) return "0";
+    final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
+    int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
+    return sizeFormatter.format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+  }
+
+  private static String formatPoints(long points) {
+    if(points <= 0) return "0";
+    final String[] units = new String[] { " p/s", "k p/s", "M p/s", "G p/s", "T p/s" };
+    int digitGroups = (int) (Math.log10(points) / Math.log10(1024));
+    return sizeFormatter.format(points / Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+  }
+  private static void displayAvgSpeedAndMemory(final long start_time, final long points, boolean showMem) {
     final double time_delta = (System.nanoTime() - start_time) / 1000000000.0;
-    LOG.info(String.format("Average speed: %d data points in %.3fs (%.1f points/s)",
-      points, time_delta, (points / time_delta)));
+    final long usedMem = showMem ? runtime.totalMemory() - runtime.freeMemory() : 0;
+
+    LOG.info(String.format("Average speed: %s data points in %.3fs (%s) %s",
+      formatPoints(points), time_delta, formatPoints((long)(points / time_delta)), showMem ? formatSize(usedMem):""));
   }
 
+  private static FileReader newReader(Options options) {
+    switch (options.reader) {
+      case BUFFERED:
+        return new BufferedFileReader(options.bufferSize);
+      case CHAR_BUFFER:
+        return new CharBufferFileReader();
+      case FAST_LINE:
+        return new FastLineReader();
+      case BUFFERED_OLD:
+        return new BufferedOldReader(options.bufferSize);
+      case FAST_BUFFER:
+        return new FastBufferedReader(options.bufferSize);
+      default:
+        throw new IllegalArgumentException("Unkown Reader " + options.reader);
+    }
+  }
   /**
    * Imports a given file to TSDB
    * @return number of points imported from file
    * @throws IOException
    */
-  private static int importFile(final String path, final int bufferSize) throws IOException {
+  private static long importFile(final Options options) throws IOException {
 
-    final FileReader reader = new FastLineReader();
-//    final FileReader reader = new CharBufferFileReader();
-//    final FileReader reader = new BufferedFileReader(bufferSize);
-    String line = null;
+    final FileReader reader = newReader(options);
 
-    int points = 0;
-
+    long points = 0;
+    long words = 0;
     final long start_time = System.nanoTime();
 
     try {
-      reader.readFile(path);
+      reader.readFile(options.input);
       while (reader.readln()) {
-        processAndImportLine(reader);
+        words += processAndImportLine(reader);
 
         points++;
 
-        if (points % 1000000 == 0) {
-          displayAvgSpeed(start_time, points);
+        if (points % 1_000_000 == 0) {
+          displayAvgSpeedAndMemory(start_time, points, options.showMem);
         }
       }
     } catch (RuntimeException e) {
-      LOG.error("Exception caught while processing file " + path + " line=" + line);
+      LOG.error("Error processing point " + points);
       throw e;
     }
+
+    displayAvgSpeedAndMemory(start_time, points, options.showMem);
+    System.out.printf("%ntotal words read %d%ntotal points read %d%n", words, points);
 
     return points;
   }
 
-  private static void processAndImportLine(final FileReader reader) {
+  private static long processAndImportLine(final FileReader reader) {
+    long words = 0;
+
     final String metric = reader.next();
+    words++;
     if (metric.length() <= 0) {
       throw new RuntimeException("invalid metric: " + metric);
     }
 
     long timestamp = reader.nextLong();
+    words++;
     if (timestamp <= 0) {
       throw new RuntimeException("invalid timestamp: " + timestamp);
     }
 
     final String value = reader.next();
+    words++;
     if (value.length() <= 0) {
       throw new RuntimeException("invalid value: " + value);
     }
@@ -107,7 +161,26 @@ final class TextImporter2 {
     final HashMap<String, String> tags = new HashMap<>();
     while (reader.hasNext()) {
       Tags.parse(tags, reader.next());
+      words++;
     }
+
+    return words;
   }
 
+  private static class Options {
+    @Option(name = "-input", required = true)
+    String input;
+    @Option(name = "-repeat")
+    int repetitions = 1;
+    @Option(name = "-buffer")
+    int bufferSize = 8192;
+    @Option(name = "-reader")
+    Reader reader = Reader.BUFFERED;
+    @Option(name = "-memory")
+    boolean showMem = false;
+
+    private enum Reader {
+      BUFFERED, CHAR_BUFFER, FAST_LINE, BUFFERED_OLD, FAST_BUFFER
+    }
+  }
 }

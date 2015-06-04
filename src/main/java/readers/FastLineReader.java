@@ -1,4 +1,4 @@
-package freader;
+package readers;
 
 import utils.FastLine;
 

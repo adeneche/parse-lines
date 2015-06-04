@@ -1,4 +1,4 @@
-package freader;
+package readers;
 
 import com.google.common.base.Splitter;
 import org.slf4j.Logger;

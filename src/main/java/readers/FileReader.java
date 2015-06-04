@@ -1,4 +1,4 @@
-package freader;
+package readers;
 
 import java.io.IOException;
 import java.util.Iterator;

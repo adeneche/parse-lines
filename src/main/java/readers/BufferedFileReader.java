@@ -1,5 +1,6 @@
-package freader;
+package readers;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Splitter;
 import utils.Tags;
 
@@ -30,8 +31,7 @@ public class BufferedFileReader extends FileReader {
     if (fileName.endsWith(".gz")) {
       is = new GZIPInputStream(is);
     }
-    // I <3 Java's IO library.
-    reader =  new BufferedReader(new InputStreamReader(is), bufferSize);
+    reader =  new BufferedReader(new InputStreamReader(is, Charsets.UTF_8), bufferSize);
   }
 
   @Override
